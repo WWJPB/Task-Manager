@@ -26,6 +26,7 @@ with tab_add:
     description = st.text_input("Describe task(optional)")
     priority_list = st.multiselect("Set priority: ", ['Low', 'Mid', 'High'])
     priority = ''.join(priority_list)
+    assigned = st.text_input("Assign to")
     if st.button("Submit", type="primary"):
         if not key or not title:
             st.error("Key and Title are required")
@@ -34,7 +35,8 @@ with tab_add:
                 "key": key,
                 "title": title,
                 "description": description,
-                "priority": priority
+                "priority": priority,
+                "assigned": assigned
             }
         try:
             request = requests.post(f"{FASTAPI_URL}/tasks", json=data)

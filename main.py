@@ -14,7 +14,9 @@ async def data_base(_: FastAPI):
                 key VARCHAR(4) PRIMARY KEY,
                 title VARCHAR(30),
                 description VARCHAR(100),
-                priority VARCHAR(4)
+                priority VARCHAR(4),
+                status VARCHAR(11),
+                assigned VARCHAR(30)
             )
         ''')
         conn.commit()
@@ -27,11 +29,18 @@ class PriorityLevels(str, Enum):
     MID = 'Mid'
     HIGH = 'High'
 
+class StatusLevels(str, Enum):
+    NEW = 'New'
+    IN_PROGRESS = 'In progress'
+    DONE = 'Done'
+
 class Task(BaseModel):
     key: str
     title: str
     description: str | None = None
     priority: PriorityLevels
+    status: StatusLevels = StatusLevels.NEW
+    assigned: str | None = None
 
     @field_validator('key')
     @classmethod
@@ -54,9 +63,9 @@ def add_task(task: Task):
     conn = sqlite3.connect("task_manager.db")
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO tasks (key, title, description, priority)
-            VALUES (?, ?, ?, ?)
-        ''', (task.key, task.title, task.description, task.priority.value))
+        INSERT INTO tasks (key, title, description, priority, status, assigned)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (task.key, task.title, task.description, task.priority.value, task.status.value, task.assigned))
     conn.commit()
     conn.close()
     return {
@@ -65,7 +74,9 @@ def add_task(task: Task):
             "key": task.key,
             "title": task.title,
             "description": task.description,
-            "difficulty": task.priority,
+            "priority": task.priority,
+            "status": task.status,
+            "assigned": task.assigned,
         }
     }
 
