@@ -49,6 +49,13 @@ class Task(BaseModel):
             raise ValueError("Key must be 4 digits")
         return value
 
+class TaskUpdate(BaseModel):
+    title: str
+    description: str | None = None
+    priority: PriorityLevels
+    status: StatusLevels
+    assigned: str | None = None
+
 @app.get("/tasks")
 def get_tasks():
     conn = sqlite3.connect("task_manager.db")
@@ -98,3 +105,59 @@ def delete_task(task_key: str):
     conn.commit()
     conn.close()
     return {"status": f"Successfully deleted task with key: {task_key}"}
+
+@app.get("/tasks/{task_key}")
+def get_task_by_key(task_key: str):
+    conn = sqlite3.connect("task_manager.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE key=?", (task_key,))
+    task = cursor.fetchone()
+    conn.close()
+
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with key {task_key} not found"
+        )
+    return {"Task": task}
+
+@app.put("/tasks/{task_key}", status_code=status.HTTP_200_OK)
+def update_task(task_key: str, task_data: TaskUpdate):
+    conn = sqlite3.connect("task_manager.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT key FROM tasks WHERE key = ?", (task_key,))
+    if cursor.fetchone() is None:
+        conn.close()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with key {task_key} not found"
+        )
+
+    cursor.execute('''
+        UPDATE tasks 
+        SET title = ?, description = ?, priority = ?, status = ?, assigned = ?
+        WHERE key = ?
+    ''', (
+        task_data.title,
+        task_data.description,
+        task_data.priority.value,
+        task_data.status.value,
+        task_data.assigned,
+        task_key
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": f"Task {task_key} updated",
+        "data": {
+            "key": task_key,
+            "title": task_data.title,
+            "description": task_data.description,
+            "priority": task_data.priority,
+            "status": task_data.status,
+            "assigned": task_data.assigned,
+        }
+    }
