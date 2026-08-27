@@ -8,12 +8,66 @@ st.title("Task Manager")
 
 tab_list, tab_add, tab_edit,tab_delete = st.tabs(["Tasks list", "Add task", "Edit task","Delete task"])
 
+if "filter_priority" not in st.session_state:
+    st.session_state.filter_priority = "All"
+
+if "filter_status" not in st.session_state:
+    st.session_state.filter_status = "All"
+
+if "filter_assigned" not in st.session_state:
+    st.session_state.filter_assigned = ""
+
 with tab_list:
     st.subheader("List of tasks:")
+
+    @st.dialog("Filter tasks", width="small")
+    def filter_screen():
+        priority_options = ["All", "Low", "Mid", "High"]
+        status_options = ["All", "New", "In progress", "Done"]
+
+        priority_filter = st.selectbox(
+            "Priority",
+            priority_options,
+            index=priority_options.index(st.session_state.filter_priority)
+        )
+
+        status_filter = st.selectbox(
+            "Status",
+            status_options,
+            index=status_options.index(st.session_state.filter_status)
+        )
+
+        assigned_filter = st.text_input(
+            "Assigned",
+            value=st.session_state.filter_assigned
+        )
+
+        if st.button("Submit", type="primary"):
+            st.session_state.filter_priority = priority_filter
+            st.session_state.filter_status = status_filter
+            st.session_state.filter_assigned = assigned_filter
+            st.rerun()
+
+    if st.button("Filter"):
+        filter_screen()
+
     request = requests.get(f"{FASTAPI_URL}/tasks")
     if request.status_code == 200:
         tasks = request.json()["Tasks"]
-        table = pd.DataFrame(tasks, columns=["Key", "Title", "Description", "Priority"])
+
+        if st.session_state.filter_priority != "All":
+            tasks = [task for task in tasks if task[3] == st.session_state.filter_priority]
+
+        if st.session_state.filter_status != "All":
+            tasks = [task for task in tasks if task[4] == st.session_state.filter_status]
+
+        if st.session_state.filter_assigned:
+            tasks = [
+                task for task in tasks
+                if st.session_state.filter_assigned.lower() in (task[5] or "").lower()
+            ]
+
+        table = pd.DataFrame(tasks, columns=["Key", "Title", "Description", "Priority", "Status", "Assigned"])
         st.dataframe(table, use_container_width=True, hide_index=True)
 
     if st.button("🔄", type="primary"):
@@ -24,9 +78,9 @@ with tab_add:
     key = st.text_input("Enter key")
     title = st.text_input("Enter title")
     description = st.text_input("Describe task(optional)")
-    priority_list = st.multiselect("Set priority: ", ['Low', 'Mid', 'High'])
-    priority = ''.join(priority_list)
+    priority = st.selectbox("Set priority: ", ['Low', 'Mid', 'High'])
     assigned = st.text_input("Assign to")
+
     if st.button("Submit", type="primary"):
         if not key or not title:
             st.error("Key and Title are required")
@@ -73,10 +127,12 @@ with tab_edit:
         description_edit = st.text_input("Description (optional)", value=current_description, key="description_edit")
 
         priority_options = ['Low', 'Mid', 'High']
-        default_priority = [current_priority]
-        priority_list_edit = st.multiselect("Priority ", priority_options, default=default_priority,
-                                            key="priority_edit")
-        priority_edit = ''.join(priority_list_edit)
+        priority_edit = st.selectbox(
+            "Priority",
+            priority_options,
+            index=priority_options.index(current_priority),
+            key="priority_edit"
+        )
 
         status_options = ['New', 'In progress', 'Done']
         status_index = status_options.index(current_status)
@@ -102,13 +158,11 @@ with tab_edit:
             except requests.exceptions.ConnectionError:
                 st.error("Could not connect to FastAPI server.")
 
-
     if st.button("Edit", type="primary"):
         if not key_edit:
             st.error("Please enter a key")
         else:
             edit_screen(key_edit)
-
 
 with tab_delete:
     st.subheader("Delete task")
